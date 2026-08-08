@@ -4389,7 +4389,10 @@ class SearchService:
             search_dimensions = [
                 {
                     'name': 'latest_news',
-                    'query': f"{effective_name} {stock_code} latest news events",
+                    'query': (
+                        f"{effective_name} {stock_code} latest news press release "
+                        "investor relations"
+                    ),
                     'desc': '最新消息',
                     'tavily_topic': 'news',
                     'strict_freshness': True,
@@ -4405,7 +4408,10 @@ class SearchService:
                     'name': 'risk_check',
                     'query': (
                         f"{effective_name} {stock_code} index performance outlook tracking error"
-                        if is_index_etf else f"{effective_name} risk insider selling lawsuit litigation"
+                        if is_index_etf else (
+                            f"{effective_name} {stock_code} SEC filing 8-K Form 4 "
+                            "insider selling lawsuit litigation regulatory risk"
+                        )
                     ),
                     'desc': '风险排查',
                     'tavily_topic': None if is_index_etf else 'news',
@@ -4415,10 +4421,13 @@ class SearchService:
                     'name': 'earnings',
                     'query': (
                         f"{effective_name} {stock_code} index performance composition outlook"
-                        if is_index_etf else f"{effective_name} earnings revenue profit growth forecast"
+                        if is_index_etf else (
+                            f"{effective_name} {stock_code} investor relations SEC 10-Q 10-K "
+                            "earnings revenue guidance"
+                        )
                     ),
                     'desc': '业绩预期',
-                    'tavily_topic': None,
+                    'tavily_topic': None if is_index_etf else 'news',
                     'strict_freshness': False,
                 },
                 {
@@ -4643,8 +4652,12 @@ class SearchService:
                 for i, r in enumerate(resp.results[:4], 1):
                     date_str = f" [{r.published_date}]" if r.published_date else ""
                     lines.append(f"  {i}. {r.title}{date_str}")
-                    # 如果摘要太短，可能信息量不足
-                    snippet = r.snippet[:150] if len(r.snippet) > 20 else r.snippet
+                    source_label = r.source or "未知来源"
+                    lines.append(f"     来源网站: {source_label}")
+                    if r.url:
+                        lines.append(f"     原文链接: {r.url}")
+                    # 保留足够上下文供模型交叉核验，不把 advanced 提取结果过度截断。
+                    snippet = r.snippet[:320] if len(r.snippet) > 20 else r.snippet
                     lines.append(f"     {snippet}...")
                     if r.relevance_category or r.relevance_reasons:
                         relevance_parts = []
