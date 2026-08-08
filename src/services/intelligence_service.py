@@ -7,6 +7,7 @@ import hashlib
 import ipaddress
 import json
 import logging
+import os
 import re
 import socket
 import threading
@@ -207,6 +208,20 @@ class IntelligenceService:
         enabled_count = 0
         errors = []
         templates = self._builtin_source_templates()
+        selected_ids = {
+            item.strip()
+            for item in re.split(
+                r"[,;\s]+",
+                os.getenv("NEWS_INTEL_DEFAULT_SOURCE_IDS", ""),
+            )
+            if item.strip()
+        }
+        if selected_ids:
+            templates = [
+                template
+                for template in templates
+                if str(template.get("template_id") or "") in selected_ids
+            ]
         for template in templates:
             name = str(template["name"])
             try:
