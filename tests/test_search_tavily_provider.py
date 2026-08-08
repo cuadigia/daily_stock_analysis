@@ -16,7 +16,7 @@ if "newspaper" not in sys.modules:
     mock_np.Config = MagicMock()
     sys.modules["newspaper"] = mock_np
 
-from src.search_service import SearchService, TavilySearchProvider
+from src.search_service import SearchResponse, SearchResult, SearchService, TavilySearchProvider
 
 
 class _FakeTavilyClient:
@@ -52,6 +52,31 @@ class TestTavilySearchProvider(unittest.TestCase):
         _FakeTavilyClient.response_payload = payload
         return patch.dict(sys.modules, {"tavily": _fake_tavily_module()})
 
+    def test_formatted_intelligence_keeps_source_and_original_url(self) -> None:
+        service = SearchService(searxng_public_instances_enabled=False)
+        report = service.format_intel_report(
+            {
+                "latest_news": SearchResponse(
+                    query="NVDA latest news",
+                    results=[
+                        SearchResult(
+                            title="NVIDIA files an 8-K",
+                            snippet="Official filing details.",
+                            url="https://www.sec.gov/example",
+                            source="sec.gov",
+                            published_date="2026-08-08",
+                        )
+                    ],
+                    provider="Tavily",
+                    success=True,
+                )
+            },
+            "NVIDIA",
+        )
+
+        self.assertIn("来源网站: sec.gov", report)
+        self.assertIn("原文链接: https://www.sec.gov/example", report)
+
     def test_provider_uses_news_topic_when_explicitly_requested(self) -> None:
         published_text = "2026-03-20T09:30:00Z"
         provider = TavilySearchProvider(["dummy_key"])
@@ -77,6 +102,7 @@ class TestTavilySearchProvider(unittest.TestCase):
         self.assertEqual(_FakeTavilyClient.search_calls[0]["days"], 3)
         self.assertEqual(_FakeTavilyClient.search_calls[0]["max_results"], 5)
         self.assertEqual(_FakeTavilyClient.search_calls[0]["search_depth"], "advanced")
+        self.assertTrue(_FakeTavilyClient.search_calls[0]["include_usage"])
         self.assertEqual(len(resp.results), 1)
         self.assertEqual(resp.results[0].published_date, published_text)
         self.assertEqual(resp.results[0].url, "https://example.com/alibaba-earnings")
@@ -121,6 +147,37 @@ class TestTavilySearchProvider(unittest.TestCase):
         self.assertTrue(resp.success)
         self.assertEqual(len(_FakeTavilyClient.search_calls), 1)
         self.assertNotIn("topic", _FakeTavilyClient.search_calls[0])
+        self.assertEqual(_FakeTavilyClient.search_calls[0]["search_depth"], "basic")
+
+    def test_market_review_search_uses_basic_tavily_depth(self) -> None:
+        published_text = datetime.now(timezone.utc).replace(microsecond=0).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        with self._patch_tavily(
+            {
+                "results": [
+                    {
+                        "title": "US market closes higher",
+                        "url": "https://example.com/market-close",
+                        "content": "S&P 500 and Nasdaq market recap.",
+                        "published_date": published_text,
+                    }
+                ]
+            }
+        ):
+            service = SearchService(
+                tavily_keys=["dummy_key"],
+                searxng_public_instances_enabled=False,
+            )
+            service.search_stock_news(
+                "market",
+                "US market",
+                max_results=3,
+                focus_keywords=["US", "stock", "market"],
+            )
+
+        self.assertNotIn("topic", _FakeTavilyClient.search_calls[0])
+        self.assertEqual(_FakeTavilyClient.search_calls[0]["search_depth"], "basic")
 
     def test_search_stock_news_keeps_tavily_results_with_supported_date_fields(self) -> None:
         published_dt = datetime.now(timezone.utc).replace(microsecond=0)
@@ -269,6 +326,32 @@ class TestTavilySearchProvider(unittest.TestCase):
         self.assertEqual(_FakeTavilyClient.search_calls[0]["topic"], "news")
         self.assertNotIn("topic", _FakeTavilyClient.search_calls[1])
         self.assertEqual(_FakeTavilyClient.search_calls[2]["topic"], "news")
+
+    def test_search_comprehensive_intel_earnings_uses_basic_search(self) -> None:
+        published_text = datetime.now(timezone.utc).replace(microsecond=0).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        with self._patch_tavily(
+            {
+                "results": [
+                    {
+                        "title": "Alibaba earnings filing",
+                        "url": "https://example.com/alibaba-filing",
+                        "content": "Quarterly results and guidance",
+                        "published_date": published_text,
+                    }
+                ]
+            }
+        ):
+            service = SearchService(
+                tavily_keys=["dummy_key"],
+                searxng_public_instances_enabled=False,
+            )
+            intel = service.search_comprehensive_intel("BABA", "阿里巴巴", max_searches=4)
+
+        self.assertIn("earnings", intel)
+        self.assertNotIn("topic", _FakeTavilyClient.search_calls[3])
+        self.assertEqual(_FakeTavilyClient.search_calls[3]["search_depth"], "basic")
 
 
 if __name__ == "__main__":
