@@ -107,6 +107,55 @@ class TestTavilySearchProvider(unittest.TestCase):
         self.assertEqual(resp.results[0].published_date, published_text)
         self.assertEqual(resp.results[0].url, "https://example.com/alibaba-earnings")
 
+    def test_monthly_credit_cap_blocks_search_before_overage(self) -> None:
+        usage_response = MagicMock()
+        usage_response.json.return_value = {
+            "key": {"usage": 989, "limit": 1000},
+            "account": {"plan_usage": 989, "plan_limit": 1000},
+        }
+
+        with patch.dict("os.environ", {"TAVILY_MONTHLY_CREDIT_CAP": "990"}):
+            provider = TavilySearchProvider(["dummy_key"])
+
+        with patch("src.search_service.requests.get", return_value=usage_response), self._patch_tavily(
+            {"results": []}
+        ):
+            resp = provider.search(
+                "BABA latest news",
+                max_results=5,
+                days=3,
+                topic="news",
+            )
+
+        self.assertFalse(resp.success)
+        self.assertIn("额度保护", resp.error_message)
+        self.assertEqual(_FakeTavilyClient.search_calls, [])
+        usage_response.raise_for_status.assert_called_once_with()
+
+    def test_monthly_credit_cap_reserves_exact_request_cost(self) -> None:
+        usage_response = MagicMock()
+        usage_response.json.return_value = {
+            "key": {"usage": 988, "limit": 1000},
+            "account": {"plan_usage": 988, "plan_limit": 1000},
+        }
+
+        with patch.dict("os.environ", {"TAVILY_MONTHLY_CREDIT_CAP": "990"}):
+            provider = TavilySearchProvider(["dummy_key"])
+
+        with patch("src.search_service.requests.get", return_value=usage_response), self._patch_tavily(
+            {"results": [], "usage": {"credits": 2}}
+        ):
+            resp = provider.search(
+                "BABA latest news",
+                max_results=5,
+                days=3,
+                topic="news",
+            )
+
+        self.assertTrue(resp.success)
+        self.assertEqual(provider._monthly_credit_usage, 990)
+        self.assertEqual(_FakeTavilyClient.search_calls[0]["search_depth"], "advanced")
+
     def test_provider_supports_publishedDate_variant(self) -> None:
         provider = TavilySearchProvider(["dummy_key"])
 
@@ -147,9 +196,9 @@ class TestTavilySearchProvider(unittest.TestCase):
         self.assertTrue(resp.success)
         self.assertEqual(len(_FakeTavilyClient.search_calls), 1)
         self.assertNotIn("topic", _FakeTavilyClient.search_calls[0])
-        self.assertEqual(_FakeTavilyClient.search_calls[0]["search_depth"], "advanced")
+        self.assertEqual(_FakeTavilyClient.search_calls[0]["search_depth"], "basic")
 
-    def test_market_review_search_uses_news_topic_and_advanced_tavily_depth(self) -> None:
+    def test_market_review_search_uses_basic_tavily_depth(self) -> None:
         published_text = datetime.now(timezone.utc).replace(microsecond=0).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         )
@@ -176,8 +225,8 @@ class TestTavilySearchProvider(unittest.TestCase):
                 focus_keywords=["US", "stock", "market"],
             )
 
-        self.assertEqual(_FakeTavilyClient.search_calls[0]["topic"], "news")
-        self.assertEqual(_FakeTavilyClient.search_calls[0]["search_depth"], "advanced")
+        self.assertNotIn("topic", _FakeTavilyClient.search_calls[0])
+        self.assertEqual(_FakeTavilyClient.search_calls[0]["search_depth"], "basic")
 
     def test_search_stock_news_keeps_tavily_results_with_supported_date_fields(self) -> None:
         published_dt = datetime.now(timezone.utc).replace(microsecond=0)
@@ -327,7 +376,7 @@ class TestTavilySearchProvider(unittest.TestCase):
         self.assertNotIn("topic", _FakeTavilyClient.search_calls[1])
         self.assertEqual(_FakeTavilyClient.search_calls[2]["topic"], "news")
 
-    def test_search_comprehensive_intel_earnings_uses_advanced_search(self) -> None:
+    def test_search_comprehensive_intel_earnings_uses_basic_search(self) -> None:
         published_text = datetime.now(timezone.utc).replace(microsecond=0).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         )
@@ -351,7 +400,7 @@ class TestTavilySearchProvider(unittest.TestCase):
 
         self.assertIn("earnings", intel)
         self.assertNotIn("topic", _FakeTavilyClient.search_calls[3])
-        self.assertEqual(_FakeTavilyClient.search_calls[3]["search_depth"], "advanced")
+        self.assertEqual(_FakeTavilyClient.search_calls[3]["search_depth"], "basic")
 
 
 if __name__ == "__main__":
