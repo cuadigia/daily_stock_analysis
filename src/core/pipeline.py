@@ -14,6 +14,7 @@ A股自选股智能分析系统 - 核心分析流水线
 import logging
 import os
 import inspect
+import re
 import threading
 import time
 import uuid
@@ -198,6 +199,24 @@ def _symbol_scope_lookup_values(code: str, market: str) -> List[str]:
         add_case_variants(f"SS.{normalized}")
         add_case_variants(f"{normalized}.SS")
     return values
+
+
+def _intelligence_item_matches_stock(item: Dict[str, Any], code: str, stock_name: str) -> bool:
+    """Keep market/global feed items only when they identify the target stock."""
+    haystack = " ".join(
+        str(item.get(field) or "") for field in ("title", "summary", "url")
+    )
+    normalized_code = normalize_stock_code(str(code or "").strip()).upper()
+    tokens = set(re.findall(r"[A-Z0-9.]+", haystack.upper()))
+    if normalized_code and normalized_code in tokens:
+        return True
+    normalized_name = str(stock_name or "").strip().lower()
+    return bool(
+        normalized_name
+        and normalized_name != normalized_code.lower()
+        and len(normalized_name) >= 3
+        and normalized_name in haystack.lower()
+    )
 
 
 class StockAnalysisPipeline:
@@ -613,14 +632,13 @@ class StockAnalysisPipeline:
             if self.search_service is not None and self.search_service.is_available:
                 logger.info(f"{stock_name}({code}) 开始多维度情报搜索...")
 
-                # 日常持仓分析默认搜索 4 个核心维度，覆盖新闻、机构观点、风险与业绩，
-                # 同时避免把变化较慢的行业背景每天重复塞进 LLM Prompt。
-                # 需要完整行业研究时可通过环境变量调高到 5。
-                raw_max_searches = os.getenv("COMPREHENSIVE_INTEL_MAX_SEARCHES", "4")
+                # 持仓分析默认覆盖新闻、机构观点、风险、业绩与行业五个维度。
+                # 真实性、准确性和时效性优先于少量搜索与 Prompt 成本。
+                raw_max_searches = os.getenv("COMPREHENSIVE_INTEL_MAX_SEARCHES", "5")
                 try:
                     max_intel_searches = int(raw_max_searches)
                 except (TypeError, ValueError):
-                    max_intel_searches = 4
+                    max_intel_searches = 5
                 max_intel_searches = max(1, min(max_intel_searches, 5))
 
                 intel_results = self.search_service.search_comprehensive_intel(
@@ -2776,10 +2794,19 @@ class StockAnalysisPipeline:
                 {"scope_type": "symbol", "scope_value": scope_value, "market": market}
                 for scope_value in _symbol_scope_lookup_values(code, market)
             ]
-            for filters in symbol_filters + [{"scope_type": "market", "market": market}]:
+            feed_filters = symbol_filters + [
+                {"scope_type": "market", "market": market},
+                {"scope_type": "market", "market": "global"},
+            ]
+            for filters in feed_filters:
                 payload = service.list_items(published_days=days, page=1, page_size=limit, **filters)
                 for item in payload.get("items", []):
                     if not isinstance(item, dict):
+                        continue
+                    if (
+                        filters.get("scope_type") == "market"
+                        and not _intelligence_item_matches_stock(item, code, stock_name)
+                    ):
                         continue
                     url = str(item.get("url") or "")
                     if url in seen_urls:
