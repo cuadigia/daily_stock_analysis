@@ -59,6 +59,24 @@ jobs:
       - name: 创建必要目录
         run: |
           mkdir -p data logs reports
+
+      - name: 从 IBKR 同步持仓股票
+        env:
+          IBKR_FLEX_TOKEN: ${{ secrets.IBKR_FLEX_TOKEN }}
+          IBKR_FLEX_QUERY_ID: ${{ secrets.IBKR_FLEX_QUERY_ID }}
+        run: |
+          if [ -z "$IBKR_FLEX_TOKEN" ] || [ -z "$IBKR_FLEX_QUERY_ID" ]; then
+            echo "IBKR Flex 未完整配置，将使用 STOCK_LIST 备用列表"
+            exit 0
+          fi
+
+          if IBKR_STOCK_LIST="$(python .github/scripts/ibkr_flex_positions.py)" && [ -n "$IBKR_STOCK_LIST" ]; then
+            echo "IBKR_STOCK_LIST=$IBKR_STOCK_LIST" >> "$GITHUB_ENV"
+            IBKR_COUNT="$(awk -F',' '{print NF}' <<< "$IBKR_STOCK_LIST")"
+            echo "✅ 已从 IBKR 同步 $IBKR_COUNT 只可分析的股票/ETF 持仓"
+          else
+            echo "::warning::IBKR 持仓同步失败，将使用 STOCK_LIST 备用列表"
+          fi
       
       - name: 执行股票分析
         env:
@@ -429,10 +447,13 @@ jobs:
           
         run: |
           # 解析自选股配置：
-          # 1. Repository/Environment secrets 或 Repository variables（STOCK_LIST_CONFIG）
-          # 2. 同名 Environment variables 注入的 runner 环境变量（STOCK_LIST）
-          # 3. 最小默认值
-          if [ -n "${STOCK_LIST_CONFIG:-}" ]; then
+          # 1. IBKR Flex 动态持仓（IBKR_STOCK_LIST）
+          # 2. Repository/Environment secrets 或 Repository variables（STOCK_LIST_CONFIG）
+          # 3. 同名 Environment variables 注入的 runner 环境变量（STOCK_LIST）
+          # 4. 最小默认值
+          if [ -n "${IBKR_STOCK_LIST:-}" ]; then
+            export STOCK_LIST="$IBKR_STOCK_LIST"
+          elif [ -n "${STOCK_LIST_CONFIG:-}" ]; then
             export STOCK_LIST="$STOCK_LIST_CONFIG"
           elif [ -z "${STOCK_LIST:-}" ]; then
             export STOCK_LIST="600519"
