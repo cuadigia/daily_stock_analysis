@@ -189,6 +189,16 @@ def main() -> int:
         print(f"IBKR position sync failed: {exc}", file=sys.stderr)
         return 1
 
+    excluded = {
+        item.strip().upper()
+        for item in re.split(r"[,;\s]+", os.getenv("IBKR_EXCLUDE_SYMBOLS", ""))
+        if item.strip()
+    }
+    symbols = [symbol for symbol in symbols if symbol.upper() not in excluded]
+    if not symbols:
+        print("IBKR position sync failed: all stock positions were excluded", file=sys.stderr)
+        return 1
+
     print(",".join(symbols))
     print(f"IBKR position sync found {len(symbols)} analyzable holdings", file=sys.stderr)
     return 0
