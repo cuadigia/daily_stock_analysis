@@ -613,13 +613,14 @@ class StockAnalysisPipeline:
             if self.search_service is not None and self.search_service.is_available:
                 logger.info(f"{stock_name}({code}) 开始多维度情报搜索...")
 
-                # 日常持仓分析默认只搜索 3 个核心维度，避免把大量重复网页摘要
-                # 塞进 LLM Prompt。需要更完整的研究时可通过环境变量调高到 5。
-                raw_max_searches = os.getenv("COMPREHENSIVE_INTEL_MAX_SEARCHES", "3")
+                # 日常持仓分析默认搜索 4 个核心维度，覆盖新闻、机构观点、风险与业绩，
+                # 同时避免把变化较慢的行业背景每天重复塞进 LLM Prompt。
+                # 需要完整行业研究时可通过环境变量调高到 5。
+                raw_max_searches = os.getenv("COMPREHENSIVE_INTEL_MAX_SEARCHES", "4")
                 try:
                     max_intel_searches = int(raw_max_searches)
                 except (TypeError, ValueError):
-                    max_intel_searches = 3
+                    max_intel_searches = 4
                 max_intel_searches = max(1, min(max_intel_searches, 5))
 
                 intel_results = self.search_service.search_comprehensive_intel(
