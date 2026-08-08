@@ -447,16 +447,16 @@ class TavilySearchProvider(BaseSearchProvider):
         try:
             client = TavilyClient(api_key=api_key)
             
-            # 新闻与风险事件优先质量，使用 advanced 提取多段相关内容；
-            # 机构评级等一般背景查询使用 basic，兼顾质量与每月免费额度。
-            search_depth = "advanced" if topic == "news" else "basic"
+            # 股票分析以证据质量优先：所有 Tavily 查询都使用 Advanced，
+            # 不因 token 或额度压缩检索深度。
+            search_depth = "advanced"
             search_kwargs: Dict[str, Any] = {
                 "query": query,
                 "search_depth": search_depth,
                 "max_results": max_results,
                 "include_answer": False,
                 "include_raw_content": False,
-                # Tavily 可在响应中返回本次真实额度消耗，便于核对免费额度。
+                # 记录真实额度只用于监控，不参与降低搜索质量的决策。
                 "include_usage": True,
                 "days": days,  # 搜索最近天数的内容
             }
@@ -2456,7 +2456,7 @@ class SearchService:
             self._providers.append(BochaSearchProvider(bocha_keys))
             logger.info(f"已配置 Bocha 搜索，共 {len(bocha_keys)} 个 API Key")
 
-        # 2. Tavily（免费额度更多，每月 1000 次）
+        # 2. Tavily（结构化结果与相关性排序适合股票情报检索）
         if tavily_keys:
             self._providers.append(TavilySearchProvider(tavily_keys))
             logger.info(f"已配置 Tavily 搜索，共 {len(tavily_keys)} 个 API Key")
@@ -4117,10 +4117,8 @@ class SearchService:
 
                 search_kwargs: Dict[str, Any] = {}
                 if isinstance(provider, TavilySearchProvider):
-                    # 个股最新消息保留 Advanced；美股大盘已合并为一条综合查询，
-                    # 用 Basic 并由 MarketWatch RSS 补充，可为 23 个交易日月份留出额度余量。
-                    if str(stock_code or "").strip().lower() != "market":
-                        search_kwargs["topic"] = "news"
+                    # 个股与大盘新闻都使用新闻语义和 Advanced 深度。
+                    search_kwargs["topic"] = "news"
                 elif isinstance(provider, BraveSearchProvider):
                     search_kwargs.update(
                         self._brave_search_locale(
@@ -4414,7 +4412,7 @@ class SearchService:
                     'name': 'market_analysis',
                     'query': (
                         f"{effective_name} {stock_code} analyst rating target price "
-                        "industry competitors market share outlook"
+                        "consensus estimates institutional research"
                     ),
                     'desc': '机构分析',
                     'tavily_topic': None,
@@ -4443,8 +4441,6 @@ class SearchService:
                         )
                     ),
                     'desc': '业绩预期',
-                    # 财报属于重要信息，但 180 日窗口的结构化摘要用 Basic 足够；
-                    # 最新消息与风险事件继续使用 Advanced。
                     'tavily_topic': None,
                     'strict_freshness': False,
                 },
@@ -4452,7 +4448,10 @@ class SearchService:
                     'name': 'industry',
                     'query': (
                         f"{effective_name} {stock_code} index sector allocation holdings"
-                        if is_index_etf else f"{effective_name} industry competitors market share outlook"
+                        if is_index_etf else (
+                            f"{effective_name} {stock_code} industry competitors market share "
+                            "demand supply chain regulation outlook"
+                        )
                     ),
                     'desc': '行业分析',
                     'tavily_topic': None,
@@ -4518,7 +4517,8 @@ class SearchService:
             ]
         
         search_days = self._effective_news_window_days()
-        target_per_dimension = 3
+        # 每个维度保留四条经过时效与相关性过滤的证据，便于交叉核验。
+        target_per_dimension = 4
         provider_max_results = self._provider_request_size(target_per_dimension)
 
         logger.info(
@@ -4675,7 +4675,7 @@ class SearchService:
                     if r.url:
                         lines.append(f"     原文链接: {r.url}")
                     # 保留足够上下文供模型交叉核验，不把 advanced 提取结果过度截断。
-                    snippet = r.snippet[:320] if len(r.snippet) > 20 else r.snippet
+                    snippet = r.snippet[:500] if len(r.snippet) > 20 else r.snippet
                     lines.append(f"     {snippet}...")
                     if r.relevance_category or r.relevance_reasons:
                         relevance_parts = []
