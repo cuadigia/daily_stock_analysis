@@ -456,6 +456,8 @@ class TavilySearchProvider(BaseSearchProvider):
                 "max_results": max_results,
                 "include_answer": False,
                 "include_raw_content": False,
+                # Tavily 可在响应中返回本次真实额度消耗，便于核对免费额度。
+                "include_usage": True,
                 "days": days,  # 搜索最近天数的内容
             }
             if topic is not None:
@@ -466,7 +468,15 @@ class TavilySearchProvider(BaseSearchProvider):
             )
             
             # 记录原始响应到日志
-            logger.info(f"[Tavily] 搜索完成，query='{query}', 返回 {len(response.get('results', []))} 条结果")
+            usage = response.get("usage") or {}
+            credits = usage.get("credits")
+            logger.info(
+                "[Tavily] 搜索完成，query='%s', depth=%s, 返回 %d 条结果, credits=%s",
+                query,
+                search_depth,
+                len(response.get('results', [])),
+                credits if credits is not None else "unknown",
+            )
             logger.debug(f"[Tavily] 原始响应: {response}")
             
             # 解析结果
