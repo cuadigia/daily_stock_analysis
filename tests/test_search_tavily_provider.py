@@ -147,9 +147,9 @@ class TestTavilySearchProvider(unittest.TestCase):
         self.assertTrue(resp.success)
         self.assertEqual(len(_FakeTavilyClient.search_calls), 1)
         self.assertNotIn("topic", _FakeTavilyClient.search_calls[0])
-        self.assertEqual(_FakeTavilyClient.search_calls[0]["search_depth"], "basic")
+        self.assertEqual(_FakeTavilyClient.search_calls[0]["search_depth"], "advanced")
 
-    def test_market_review_search_uses_basic_tavily_depth(self) -> None:
+    def test_market_review_search_uses_news_topic_and_advanced_tavily_depth(self) -> None:
         published_text = datetime.now(timezone.utc).replace(microsecond=0).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         )
@@ -176,8 +176,8 @@ class TestTavilySearchProvider(unittest.TestCase):
                 focus_keywords=["US", "stock", "market"],
             )
 
-        self.assertNotIn("topic", _FakeTavilyClient.search_calls[0])
-        self.assertEqual(_FakeTavilyClient.search_calls[0]["search_depth"], "basic")
+        self.assertEqual(_FakeTavilyClient.search_calls[0]["topic"], "news")
+        self.assertEqual(_FakeTavilyClient.search_calls[0]["search_depth"], "advanced")
 
     def test_search_stock_news_keeps_tavily_results_with_supported_date_fields(self) -> None:
         published_dt = datetime.now(timezone.utc).replace(microsecond=0)
@@ -327,7 +327,7 @@ class TestTavilySearchProvider(unittest.TestCase):
         self.assertNotIn("topic", _FakeTavilyClient.search_calls[1])
         self.assertEqual(_FakeTavilyClient.search_calls[2]["topic"], "news")
 
-    def test_search_comprehensive_intel_earnings_uses_basic_search(self) -> None:
+    def test_search_comprehensive_intel_earnings_uses_advanced_search(self) -> None:
         published_text = datetime.now(timezone.utc).replace(microsecond=0).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         )
@@ -351,7 +351,7 @@ class TestTavilySearchProvider(unittest.TestCase):
 
         self.assertIn("earnings", intel)
         self.assertNotIn("topic", _FakeTavilyClient.search_calls[3])
-        self.assertEqual(_FakeTavilyClient.search_calls[3]["search_depth"], "basic")
+        self.assertEqual(_FakeTavilyClient.search_calls[3]["search_depth"], "advanced")
 
 
 if __name__ == "__main__":
