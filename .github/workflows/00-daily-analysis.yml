@@ -28,6 +28,10 @@ concurrency:
   group: stock-analysis
   cancel-in-progress: false
 
+# 日报任务只需要读取仓库代码，限制默认令牌权限以降低供应链风险。
+permissions:
+  contents: read
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
@@ -448,6 +452,10 @@ jobs:
           # ==========================================
           LOG_LEVEL: INFO
           MAX_WORKERS: ${{ vars.MAX_WORKERS || secrets.MAX_WORKERS || '1' }}
+          # 仅分析少量美股时逐股取价更轻量，避免 efinance/东财触发全市场预取。
+          PREFETCH_REALTIME_QUOTES: ${{ vars.PREFETCH_REALTIME_QUOTES || 'false' }}
+          # GitHub runner 每次都是临时环境，自动回测缺少连续历史且会增加运行时间。
+          BACKTEST_ENABLED: ${{ vars.BACKTEST_ENABLED || 'false' }}
           # 筹码分布：默认 false（云端接口不稳定）；需启用时在 Settings → Variables 添加 ENABLE_CHIP_DISTRIBUTION=true
           ENABLE_CHIP_DISTRIBUTION: ${{ vars.ENABLE_CHIP_DISTRIBUTION || secrets.ENABLE_CHIP_DISTRIBUTION || 'false' }}
           # 实时行情数据源优先级（腾讯有量比且稳定，推荐首选）
