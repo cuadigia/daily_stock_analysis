@@ -447,10 +447,12 @@ class TavilySearchProvider(BaseSearchProvider):
         try:
             client = TavilyClient(api_key=api_key)
             
-            # 执行搜索（优化：使用advanced深度、限制最近几天）
+            # 新闻与风险事件优先质量，使用 advanced 提取多段相关内容；
+            # 机构评级等一般背景查询使用 basic，兼顾质量与每月免费额度。
+            search_depth = "advanced" if topic == "news" else "basic"
             search_kwargs: Dict[str, Any] = {
                 "query": query,
-                "search_depth": "advanced",  # advanced 获取更多结果
+                "search_depth": search_depth,
                 "max_results": max_results,
                 "include_answer": False,
                 "include_raw_content": False,
