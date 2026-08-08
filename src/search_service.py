@@ -4399,7 +4399,10 @@ class SearchService:
                 },
                 {
                     'name': 'market_analysis',
-                    'query': f"{effective_name} analyst rating target price report",
+                    'query': (
+                        f"{effective_name} {stock_code} analyst rating target price "
+                        "industry competitors market share outlook"
+                    ),
                     'desc': '机构分析',
                     'tavily_topic': None,
                     'strict_freshness': False,
@@ -4427,7 +4430,9 @@ class SearchService:
                         )
                     ),
                     'desc': '业绩预期',
-                    'tavily_topic': None if is_index_etf else 'news',
+                    # 财报属于重要信息，但 180 日窗口的结构化摘要用 Basic 足够；
+                    # 最新消息与风险事件继续使用 Advanced。
+                    'tavily_topic': None,
                     'strict_freshness': False,
                 },
                 {
@@ -4631,7 +4636,7 @@ class SearchService:
         dim_labels = {
             'latest_news': '📰 最新消息',
             'announcements': '📋 公司公告',
-            'market_analysis': '📈 机构分析',
+            'market_analysis': '📈 机构与行业分析',
             'risk_check': '⚠️ 风险排查',
             'earnings': '📊 业绩预期',
             'industry': '🏭 行业分析',
