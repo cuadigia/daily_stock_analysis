@@ -632,13 +632,13 @@ class StockAnalysisPipeline:
             if self.search_service is not None and self.search_service.is_available:
                 logger.info(f"{stock_name}({code}) 开始多维度情报搜索...")
 
-                # 日常持仓分析用 4 次搜索覆盖五类信息：新闻、机构观点、
-                # 风险、业绩与行业；机构与行业合并查询以控制 Tavily 月度额度。
-                raw_max_searches = os.getenv("COMPREHENSIVE_INTEL_MAX_SEARCHES", "4")
+                # 准确性优先：新闻、机构观点、风险、业绩与行业分别检索，
+                # 不以 token 或搜索额度压缩关键情报维度。
+                raw_max_searches = os.getenv("COMPREHENSIVE_INTEL_MAX_SEARCHES", "5")
                 try:
                     max_intel_searches = int(raw_max_searches)
                 except (TypeError, ValueError):
-                    max_intel_searches = 4
+                    max_intel_searches = 5
                 max_intel_searches = max(1, min(max_intel_searches, 5))
 
                 intel_results = self.search_service.search_comprehensive_intel(
