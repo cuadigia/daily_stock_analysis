@@ -333,8 +333,8 @@ jobs:
           SEARXNG_BASE_URLS: ${{ vars.SEARXNG_BASE_URLS || secrets.SEARXNG_BASE_URLS }}
           # 公共实例经常拒绝 GitHub 云端 IP；默认仅使用已配置的 Tavily，避免无效请求。
           SEARXNG_PUBLIC_INSTANCES_ENABLED: ${{ vars.SEARXNG_PUBLIC_INSTANCES_ENABLED || secrets.SEARXNG_PUBLIC_INSTANCES_ENABLED || 'false' }}
-          # 4 次搜索覆盖五类信息；机构观点与行业背景合并为一次 Basic 查询。
-          COMPREHENSIVE_INTEL_MAX_SEARCHES: ${{ vars.COMPREHENSIVE_INTEL_MAX_SEARCHES || secrets.COMPREHENSIVE_INTEL_MAX_SEARCHES || '4' }}
+          # 准确性优先：新闻、机构观点、风险、业绩、行业五个维度分别检索。
+          COMPREHENSIVE_INTEL_MAX_SEARCHES: ${{ vars.COMPREHENSIVE_INTEL_MAX_SEARCHES || secrets.COMPREHENSIVE_INTEL_MAX_SEARCHES || '5' }}
           # 独立 RSS/Atom 证据池：SEC、MarketWatch 等；失败时不阻断主流程。
           NEWS_INTEL_AUTO_FETCH_ENABLED: ${{ vars.NEWS_INTEL_AUTO_FETCH_ENABLED || secrets.NEWS_INTEL_AUTO_FETCH_ENABLED || 'true' }}
           NEWS_INTEL_MAX_ITEMS_PER_SOURCE: ${{ vars.NEWS_INTEL_MAX_ITEMS_PER_SOURCE || secrets.NEWS_INTEL_MAX_ITEMS_PER_SOURCE || '20' }}
