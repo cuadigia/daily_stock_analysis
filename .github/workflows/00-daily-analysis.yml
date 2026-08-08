@@ -329,8 +329,12 @@ jobs:
           SEARXNG_BASE_URLS: ${{ vars.SEARXNG_BASE_URLS || secrets.SEARXNG_BASE_URLS }}
           # 公共实例经常拒绝 GitHub 云端 IP；默认仅使用已配置的 Tavily，避免无效请求。
           SEARXNG_PUBLIC_INSTANCES_ENABLED: ${{ vars.SEARXNG_PUBLIC_INSTANCES_ENABLED || secrets.SEARXNG_PUBLIC_INSTANCES_ENABLED || 'false' }}
-          # 每只股票保留 4 个核心情报维度：新闻、机构观点、风险与业绩。
-          COMPREHENSIVE_INTEL_MAX_SEARCHES: ${{ vars.COMPREHENSIVE_INTEL_MAX_SEARCHES || secrets.COMPREHENSIVE_INTEL_MAX_SEARCHES || '4' }}
+          # 每只股票覆盖新闻、机构观点、风险、业绩与行业五个维度。
+          COMPREHENSIVE_INTEL_MAX_SEARCHES: ${{ vars.COMPREHENSIVE_INTEL_MAX_SEARCHES || secrets.COMPREHENSIVE_INTEL_MAX_SEARCHES || '5' }}
+          # 独立 RSS/Atom 证据池：SEC、MarketWatch 等；失败时不阻断主流程。
+          NEWS_INTEL_AUTO_FETCH_ENABLED: ${{ vars.NEWS_INTEL_AUTO_FETCH_ENABLED || secrets.NEWS_INTEL_AUTO_FETCH_ENABLED || 'true' }}
+          NEWS_INTEL_MAX_ITEMS_PER_SOURCE: ${{ vars.NEWS_INTEL_MAX_ITEMS_PER_SOURCE || secrets.NEWS_INTEL_MAX_ITEMS_PER_SOURCE || '20' }}
+          NEWS_INTEL_DEFAULT_SOURCE_IDS: ${{ vars.NEWS_INTEL_DEFAULT_SOURCE_IDS || secrets.NEWS_INTEL_DEFAULT_SOURCE_IDS || 'sec-company-news,global-marketwatch' }}
           
           # ==========================================
           # 通知渠道（可同时配置多个，全部推送）
@@ -434,8 +438,8 @@ jobs:
           SINGLE_STOCK_NOTIFY: ${{ vars.SINGLE_STOCK_NOTIFY || secrets.SINGLE_STOCK_NOTIFY || 'false' }}
           MERGE_EMAIL_NOTIFICATION: ${{ vars.MERGE_EMAIL_NOTIFICATION || secrets.MERGE_EMAIL_NOTIFICATION || 'true' }}
           MARKET_REVIEW_ENABLED: ${{ vars.MARKET_REVIEW_ENABLED || secrets.MARKET_REVIEW_ENABLED || 'true' }}
-          # 字段缺失时直接占位，不再为同一只股票额外调用一次 LLM 补写。
-          REPORT_INTEGRITY_RETRY: ${{ vars.REPORT_INTEGRITY_RETRY || secrets.REPORT_INTEGRITY_RETRY || '0' }}
+          # 准确性优先：关键报告字段缺失时允许补写一次。
+          REPORT_INTEGRITY_RETRY: ${{ vars.REPORT_INTEGRITY_RETRY || secrets.REPORT_INTEGRITY_RETRY || '1' }}
           ANALYSIS_DELAY: ${{ vars.ANALYSIS_DELAY || secrets.ANALYSIS_DELAY || '0' }}
           TRADING_DAY_CHECK_ENABLED: ${{ vars.TRADING_DAY_CHECK_ENABLED || secrets.TRADING_DAY_CHECK_ENABLED || 'true' }}
           
