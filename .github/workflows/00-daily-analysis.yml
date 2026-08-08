@@ -329,8 +329,8 @@ jobs:
           SEARXNG_BASE_URLS: ${{ vars.SEARXNG_BASE_URLS || secrets.SEARXNG_BASE_URLS }}
           # 公共实例经常拒绝 GitHub 云端 IP；默认仅使用已配置的 Tavily，避免无效请求。
           SEARXNG_PUBLIC_INSTANCES_ENABLED: ${{ vars.SEARXNG_PUBLIC_INSTANCES_ENABLED || secrets.SEARXNG_PUBLIC_INSTANCES_ENABLED || 'false' }}
-          # 每只股票只保留 3 个核心情报维度，减少搜索额度和 LLM 输入 Token。
-          COMPREHENSIVE_INTEL_MAX_SEARCHES: ${{ vars.COMPREHENSIVE_INTEL_MAX_SEARCHES || secrets.COMPREHENSIVE_INTEL_MAX_SEARCHES || '3' }}
+          # 每只股票保留 4 个核心情报维度：新闻、机构观点、风险与业绩。
+          COMPREHENSIVE_INTEL_MAX_SEARCHES: ${{ vars.COMPREHENSIVE_INTEL_MAX_SEARCHES || secrets.COMPREHENSIVE_INTEL_MAX_SEARCHES || '4' }}
           
           # ==========================================
           # 通知渠道（可同时配置多个，全部推送）
