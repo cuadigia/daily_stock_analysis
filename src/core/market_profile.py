@@ -44,7 +44,9 @@ US_PROFILE = MarketProfile(
     region="us",
     mood_index_code="SPX",
     news_queries=[
-        "US stock market S&P 500 NASDAQ Dow Federal Reserve latest",
+        "US stock market close S&P 500 NASDAQ Dow market breadth latest",
+        "Federal Reserve Treasury yields inflation jobs dollar oil market latest",
+        "US technology semiconductors AI earnings guidance regulation latest",
     ],
     prompt_index_hint="分析标普500、纳斯达克、道指等各指数走势特点",
     has_market_stats=False,
