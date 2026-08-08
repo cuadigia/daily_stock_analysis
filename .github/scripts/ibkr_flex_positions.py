@@ -145,13 +145,26 @@ def _dedupe(symbols: Iterable[str | None]) -> list[str]:
     return result
 
 
+def _position_rows(root: ET.Element) -> list[Mapping[str, str]]:
+    """Return position-like rows across IBKR's XML tag/namespace variants."""
+    rows: list[Mapping[str, str]] = []
+    for element in root.iter():
+        attributes = {
+            key.rsplit("}", 1)[-1]: value for key, value in element.attrib.items()
+        }
+        lowered = {key.lower() for key in attributes}
+        if {"assetcategory", "symbol", "position"}.issubset(lowered):
+            rows.append(attributes)
+    return rows
+
+
 def parse_positions(payload: bytes) -> list[str]:
     text = payload.decode("utf-8-sig", errors="replace").lstrip()
     if text.startswith("<"):
         root = _parse_xml(payload)
         if error := _xml_error(root):
             raise FlexError(f"IBKR Flex error {error[0]}: {error[1]}")
-        rows = [element.attrib for element in root.iter("OpenPosition")]
+        rows = _position_rows(root)
     else:
         rows = list(csv.DictReader(io.StringIO(text)))
 
