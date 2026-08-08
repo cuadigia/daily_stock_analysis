@@ -1842,27 +1842,35 @@ Market conditions can change quickly. The data above is for reference only and d
         try:
             service = IntelligenceService(config=self.config)
             service.refresh_auto_sources()
-            payload = service.list_items(
-                scope_type="market",
-                market=self.region,
-                published_days=max(1, int(self.config.get_effective_news_window_days() or 1)),
-                page=1,
-                page_size=6,
-            )
-            for item in payload.get("items", []):
-                if not isinstance(item, dict):
-                    continue
-                url = str(item.get("url") or "")
-                if url and url in seen_urls:
-                    continue
-                seen_urls.add(url)
-                merged_local.append({
-                    "title": item.get("title") or "未命名资讯",
-                    "snippet": item.get("summary") or "",
-                    "source": item.get("source") or item.get("source_name") or "local-intel",
-                    "published_date": item.get("published_at") or "",
-                    "url": "" if url.startswith("no-url:intel:") else url,
-                })
+            source_markets = [self.region]
+            if self.region == "us":
+                source_markets.append("global")
+            for source_market in source_markets:
+                payload = service.list_items(
+                    scope_type="market",
+                    market=source_market,
+                    published_days=max(1, int(self.config.get_effective_news_window_days() or 1)),
+                    page=1,
+                    page_size=6,
+                )
+                for item in payload.get("items", []):
+                    if not isinstance(item, dict):
+                        continue
+                    url = str(item.get("url") or "")
+                    if url and url in seen_urls:
+                        continue
+                    seen_urls.add(url)
+                    merged_local.append({
+                        "title": item.get("title") or "未命名资讯",
+                        "snippet": item.get("summary") or "",
+                        "source": item.get("source") or item.get("source_name") or "local-intel",
+                        "published_date": item.get("published_at") or "",
+                        "url": "" if url.startswith("no-url:intel:") else url,
+                    })
+                    if len(merged_local) >= 6:
+                        break
+                if len(merged_local) >= 6:
+                    break
         except Exception as exc:
             logger.debug("[大盘] %s action=load_local_intelligence status=failed error=%s", self._log_context(), exc)
         merged_news = []
