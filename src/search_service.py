@@ -4107,7 +4107,10 @@ class SearchService:
 
                 search_kwargs: Dict[str, Any] = {}
                 if isinstance(provider, TavilySearchProvider):
-                    search_kwargs["topic"] = "news"
+                    # 个股最新消息保留 Advanced；美股大盘已合并为一条综合查询，
+                    # 用 Basic 并由 MarketWatch RSS 补充，可为 23 个交易日月份留出额度余量。
+                    if str(stock_code or "").strip().lower() != "market":
+                        search_kwargs["topic"] = "news"
                 elif isinstance(provider, BraveSearchProvider):
                     search_kwargs.update(
                         self._brave_search_locale(
