@@ -187,7 +187,7 @@ def _handle_search_comprehensive_intel(stock_code: str, stock_name: str) -> dict
                         "snippet": r.snippet,
                         "source": r.source,
                     }
-                    for r in response.results[:5]
+                    for r in response.results[:3]
                 ],
             }
 
