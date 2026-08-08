@@ -12,6 +12,7 @@ A股自选股智能分析系统 - 核心分析流水线
 """
 
 import logging
+import os
 import inspect
 import threading
 import time
@@ -612,11 +613,19 @@ class StockAnalysisPipeline:
             if self.search_service is not None and self.search_service.is_available:
                 logger.info(f"{stock_name}({code}) 开始多维度情报搜索...")
 
-                # 使用多维度搜索（最多5次搜索）
+                # 日常持仓分析默认只搜索 3 个核心维度，避免把大量重复网页摘要
+                # 塞进 LLM Prompt。需要更完整的研究时可通过环境变量调高到 5。
+                raw_max_searches = os.getenv("COMPREHENSIVE_INTEL_MAX_SEARCHES", "3")
+                try:
+                    max_intel_searches = int(raw_max_searches)
+                except (TypeError, ValueError):
+                    max_intel_searches = 3
+                max_intel_searches = max(1, min(max_intel_searches, 5))
+
                 intel_results = self.search_service.search_comprehensive_intel(
                     stock_code=code,
                     stock_name=stock_name,
-                    max_searches=5
+                    max_searches=max_intel_searches,
                 )
 
                 # 格式化情报报告
