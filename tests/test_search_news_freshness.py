@@ -1926,7 +1926,7 @@ class SearchNewsFreshnessTestCase(unittest.TestCase):
             [3, service.ANALYTICAL_INTEL_LOOKBACK_DAYS],
         )
         for call in mock_search.call_args_list:
-            self.assertEqual(call[1]["max_results"], 6)  # target 3 -> overfetch 6
+            self.assertEqual(call[1]["max_results"], 8)  # target 4 -> overfetch 8
 
         self.assertEqual([item.title for item in intel["latest_news"].results], ["fresh"])
         self.assertEqual(
