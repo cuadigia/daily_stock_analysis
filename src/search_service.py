@@ -13,6 +13,7 @@ A股自选股智能分析系统 - 搜索服务模块
 
 import logging
 import multiprocessing
+import os
 import re
 import threading
 import time
@@ -423,6 +424,65 @@ class TavilySearchProvider(BaseSearchProvider):
     
     def __init__(self, api_keys: List[str]):
         super().__init__(api_keys, "Tavily")
+        try:
+            self._monthly_credit_cap = max(
+                0,
+                int(os.getenv("TAVILY_MONTHLY_CREDIT_CAP", "0")),
+            )
+        except (TypeError, ValueError):
+            self._monthly_credit_cap = 0
+        self._monthly_credit_usage: Optional[int] = None
+
+    def _reserve_monthly_credits(self, api_key: str, expected_credits: int) -> bool:
+        """Fail closed when the configured monthly Tavily credit cap would be exceeded."""
+        if self._monthly_credit_cap <= 0:
+            return True
+
+        with self._state_lock:
+            if self._monthly_credit_usage is None:
+                try:
+                    usage_response = requests.get(
+                        "https://api.tavily.com/usage",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                        timeout=8,
+                    )
+                    usage_response.raise_for_status()
+                    payload = usage_response.json() or {}
+                    account_usage = (payload.get("account") or {}).get("plan_usage")
+                    key_usage = (payload.get("key") or {}).get("usage")
+                    observed = [
+                        int(value)
+                        for value in (account_usage, key_usage)
+                        if value is not None
+                    ]
+                    if not observed:
+                        raise ValueError("usage response missing plan_usage/key.usage")
+                    self._monthly_credit_usage = max(observed)
+                    logger.info(
+                        "[Tavily] 月度额度检查: used=%d, cap=%d",
+                        self._monthly_credit_usage,
+                        self._monthly_credit_cap,
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "[Tavily] 无法核验月度额度，已停止 Tavily 搜索以防超额: %s",
+                        exc,
+                    )
+                    return False
+
+            projected = self._monthly_credit_usage + max(1, int(expected_credits))
+            if projected > self._monthly_credit_cap:
+                logger.warning(
+                    "[Tavily] 月度额度保护触发: used=%d, requested=%d, cap=%d",
+                    self._monthly_credit_usage,
+                    expected_credits,
+                    self._monthly_credit_cap,
+                )
+                return False
+
+            # 先预留再请求，避免并发搜索共同越过上限。
+            self._monthly_credit_usage = projected
+            return True
     
     def _do_search(
         self,
@@ -447,16 +507,24 @@ class TavilySearchProvider(BaseSearchProvider):
         try:
             client = TavilyClient(api_key=api_key)
             
-            # 股票分析以证据质量优先：所有 Tavily 查询都使用 Advanced，
-            # 不因 token 或额度压缩检索深度。
-            search_depth = "advanced"
+            # 最新新闻和风险事件使用 Advanced；机构、财报、行业背景使用 Basic。
+            search_depth = "advanced" if topic == "news" else "basic"
+            expected_credits = 2 if search_depth == "advanced" else 1
+            if not self._reserve_monthly_credits(api_key, expected_credits):
+                return SearchResponse(
+                    query=query,
+                    results=[],
+                    provider=self.name,
+                    success=False,
+                    error_message="Tavily 月度额度保护已触发，已跳过本次搜索",
+                )
             search_kwargs: Dict[str, Any] = {
                 "query": query,
                 "search_depth": search_depth,
                 "max_results": max_results,
                 "include_answer": False,
                 "include_raw_content": False,
-                # 记录真实额度只用于监控，不参与降低搜索质量的决策。
+                # 实际消耗用于核对本地预算计数。
                 "include_usage": True,
                 "days": days,  # 搜索最近天数的内容
             }
@@ -4117,8 +4185,10 @@ class SearchService:
 
                 search_kwargs: Dict[str, Any] = {}
                 if isinstance(provider, TavilySearchProvider):
-                    # 个股与大盘新闻都使用新闻语义和 Advanced 深度。
-                    search_kwargs["topic"] = "news"
+                    # 个股最新消息使用 Advanced；大盘综合查询使用 Basic，
+                    # 并由 MarketWatch RSS 提供独立补充证据。
+                    if str(stock_code or "").strip().lower() != "market":
+                        search_kwargs["topic"] = "news"
                 elif isinstance(provider, BraveSearchProvider):
                     search_kwargs.update(
                         self._brave_search_locale(
@@ -4412,7 +4482,8 @@ class SearchService:
                     'name': 'market_analysis',
                     'query': (
                         f"{effective_name} {stock_code} analyst rating target price "
-                        "consensus estimates institutional research"
+                        "consensus estimates institutional research industry competitors "
+                        "market share demand outlook"
                     ),
                     'desc': '机构分析',
                     'tavily_topic': None,
@@ -4517,8 +4588,8 @@ class SearchService:
             ]
         
         search_days = self._effective_news_window_days()
-        # 每个维度保留四条经过时效与相关性过滤的证据，便于交叉核验。
-        target_per_dimension = 4
+        # 每个维度保留三条经过时效与相关性过滤的证据，支持交叉核验。
+        target_per_dimension = 3
         provider_max_results = self._provider_request_size(target_per_dimension)
 
         logger.info(
